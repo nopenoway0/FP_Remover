@@ -1,5 +1,5 @@
 make:
-	g++ -Wall -std=c++0x Wrestler.cpp Character.cpp loader.cpp -o loader
+	g++ -Wall -std=c++0x Wrestler.cpp Character.cpp loader.cpp -o loader.exe
 comparer:
 	g++ -Wall -std=c++0x comparer.cpp -o compare.exe
 copier:

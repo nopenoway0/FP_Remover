@@ -32,6 +32,21 @@ enum
 	NICKNAME,
 };
 
+typedef struct fp_group
+{
+	string first_name;
+	string last_name;
+	int id;
+	int alignment;
+} fp_group;
+
+typedef struct organization
+{
+	string sname;
+	string lname;
+	int id;
+} org;
+
 struct saveDataChunk{
 	int32_t chunkKind;
 	int32_t version;
@@ -44,6 +59,7 @@ typedef struct saveDataChunk dataChunk;
 
 int main(int argc, char* args[]){
 	string filename;
+	int number_wrestlers;
 	if(argc  == 2)
 	{
 		filename = args[1];
@@ -52,6 +68,7 @@ int main(int argc, char* args[]){
 	ifstream file(filename, ios::in | ios::binary);
 	file.seekg(0, ios_base::end);
 	long filesize = file.tellg();
+	long* chunk_location;
 	file.seekg(ios_base::beg);
 
 	char* file_memory = new char[filesize];
@@ -75,6 +92,8 @@ int main(int argc, char* args[]){
 
 	file.seekg(16L); // move to location to begin loading chunks
 	// load first chunk data total chunks given by second integer read
+	
+	chunk_location = new long[num_chunks]; // store chunk top location for changing after wrestler is removed
 	for(int x = 0; x < num_chunks; x++)
 	{
 
@@ -84,6 +103,7 @@ int main(int argc, char* args[]){
 		file.read(buffer, 4);
 		list_chunks[x].version = *(int32_t*) buffer;
 
+		chunk_location[x] = file.tellg();
 		file.read(buffer, 8);
 		list_chunks[x].top = *(int64_t*) buffer;
 
@@ -95,9 +115,9 @@ int main(int argc, char* args[]){
 	}
 
 	// set to wreslter load start location
+{ // start wrestling load
 	file.seekg(list_chunks[4].top);
 
-	int number_wrestlers;
 	wrestler_num_location = file.tellg();
 	file.read(buffer, 4);
 	number_wrestlers = *(int*) buffer;
@@ -115,20 +135,18 @@ int main(int argc, char* args[]){
 		for(int y = 0; y < 3; y++)
 		{
 			file.read(buffer, 4);
-			cout << counter << ": " << *(int*) buffer << endl;
+			//cout << counter << ": " << *(int*) buffer << endl;
 			counter++;
 		}
 
 		file.read(buffer, 1);
-		cout << counter << ": " << *(bool*) buffer << endl;
+		//cout << counter << ": " << *(bool*) buffer << endl;
 		counter++;
 
 		//cout << "start of name loading: " << file.tellg() << endl;
 		for(int y = 0; y < 4; y++)
 		{
 			read_string = getString(file);
-			//wr->set_name(read_string);
-			//cout << read_string << endl;
 			switch(y)
 			{
 				case F_NAME:	wr->set_field(read_string, wrestler_flags::F_NAME);
@@ -137,47 +155,48 @@ int main(int argc, char* args[]){
 								break;
 				case NICKNAME:	wr->set_field(read_string, wrestler_flags::N_NAME);
 			}
-
 			counter++;
-
 
 		}
 		for(int y = 0; y < 27; y++)
 		{
 			file.read(buffer, 4);
-			cout << counter << ": " << *(int*) buffer << endl;
+			//cout << counter << ": " << *(int*) buffer << endl;
 			counter++;
-			if(counter == 12) break; // paper starts at this point
+			if(counter == 12) break; // break at birth year starts at this point
 		}
 
-		//wr.set_field(*(int*) buffer, )
+		file.seekg(2 * 4, file.cur);
 
-		file.seekg(23 * 4, file.cur); // skip 24 integers
+		file.read(buffer, 4);
+		wr->set_field(*(int*) buffer, wrestler_flags::G_ID);
+
+		file.seekg(20 * 4, file.cur); // skip 24 integers
 		file.seekg((30 * 4) + 1, file.cur); // skip 30 integers and 1 bool
 		file.seekg(91 * 4 * 3, file.cur); // skip 90 integers  3 times
 		file.seekg(273 * 4, file.cur); // skip 274 integers
 		
 		file.read(buffer, 4);
-		cout << "skill points: " << *(int*) buffer << endl;
+		//cout << "skill points: " << *(int*) buffer << endl;
 
 		read_string = getString(file);
-		cout << "move name " << read_string << endl;
+		//cout << "move name " << read_string << endl;
 
 		file.seekg(17, file.cur); // skip 17 bytes
 
 		read_string = getString(file);
 
-		cout << "file directory name " << read_string << endl;
+		//cout << "file directory name " << read_string << endl;
 
 		// costume data loading
 		file.read(buffer, 4);
-		cout << "ver. " << *(int*) buffer << endl;
+		//cout << "ver. " << *(int*) buffer << endl;
 
 		file.read(buffer, 4);
-		cout << "stance: " << *(int*) buffer << endl;
+		//cout << "stance: " << *(int*) buffer << endl;
 
 		file.read(buffer, 4);
-		cout << "form size: " << *(int*) buffer << endl;
+		//cout << "form size: " << *(int*) buffer << endl;
 
 		for(int y = 0; y < 4; y++)
 		{
@@ -187,36 +206,75 @@ int main(int argc, char* args[]){
 		}
 		wr->set_fp_end(file.tellg());
 		w_list.push_back(*wr);
-		cout << "------------------FINISH LOADING WRESTLER--------------" << endl;
+		//cout << "------------------FINISH LOADING WRESTLER--------------" << endl;
 		delete wr;
 	}
 
 	for(auto& x : w_list)
 	{
-		cout << "Name: " << x.get_name() << " Size: " << x.get_fp_end() - x.get_fp_start() << endl;
+		//cout << "Name: " << x.get_name() << " Size: " << x.get_fp_end() - x.get_fp_start() << endl;
 	}
 
-	file.close();
 
 	ofstream o_file("output", ios_base::binary);
 
 	// create writer class to write out everything except memory chunks
 
-	cout << "Removing " << w_list[0].get_name() << " starting at " << w_list[0].get_fp_start() << " end at " << w_list[0].get_fp_end() << endl;
+	//cout << "Removing " << w_list[0].get_name() << " starting at " << w_list[0].get_fp_start() << " end at " << w_list[0].get_fp_end() << endl;
 
 	cout << "file size: " << filesize << endl;
 
 	// write to file, without first wrestler
-	
+
 	// set new number to wrestlers
 	modifier = (int*) &file_memory[wrestler_num_location];
 	*modifier = (number_wrestlers - 1);
 
-	for(long x = 0; x < filesize; x++) if((x <= w_list[0].get_fp_start()) || (x > w_list[0].get_fp_end())) o_file.write(&file_memory[x], 1);
+	// change chunk tops
+	for( int x = 5; x < 17; x++)
+	{
+		modifier = (int*) &file_memory[chunk_location[x]];
+		*modifier -= (w_list[0].get_fp_end() - w_list[0].get_fp_start());		
+	}
+
+	for(int x = 11; x < 17; x++)
+	{
+		modifier = (int*) &file_memory[chunk_location[x]];
+		*modifier -= 4;
+	}
+
+	file.seekg(list_chunks[10].top);
+
+	file.read(buffer, 4); // read number of elements
+	int num = *(int*) buffer;
+
+	file.read(buffer, 4);
+	int num_elements = *(int*) buffer;
+
+	for(int x = 0; x < num_elements - 1; x++) file.read(buffer, 4);
+
+	int byte_test_loc = file.tellg();
+
+	// need to find where this 4 byte difference is coming from probably 4 byte id
+
+	for(long x = 0; x < filesize; x++)
+	{
+		if(byte_test_loc == x) x += 3;
+		else if((x <= w_list[0].get_fp_start()) || (x > w_list[0].get_fp_end())) o_file.write(&file_memory[x], 1);
+
+	}
 
 	// end what class should do
+
 	o_file.close();
 	modifier = nullptr;
+
+} // end wrestler load
+{ // start disp_order load
+	for(auto& w : w_list) cout << w.get_name() << endl;
+}
+	file.close();
+	delete [] chunk_location;
 	delete [] file_memory;
 	delete [] list_chunks;
 	delete [] buffer;
@@ -226,15 +284,12 @@ int main(int argc, char* args[]){
 string getString(ifstream& in)
 {
 	int length = getLength(in);
-	if(length > 0)
-	{
-		char* buffer = new char[length]();
-		in.read(buffer, length);
-		string result(buffer);
-		delete [] buffer;
-		return result;
-	}
-	else return "";
+	char* buffer = new char[length + 1]();
+	in.read(buffer, length);
+	buffer[length] = '\0';
+	string result(buffer);
+	delete [] buffer;
+	return result;
 }
 
 int getLength(ifstream& in)
