@@ -15,6 +15,7 @@ enum FIELD_FLAGS
 	L_NAME = F_NAME << 1,
 	N_NAME = L_NAME << 1,
 	D_NAME = N_NAME << 1,
+	G_ID = D_NAME << 1,
 };
 
 using namespace std;
@@ -24,9 +25,10 @@ class Wrestler : public Character
 public:
 	Wrestler();
 	Wrestler(string name);
-	void set_field(unsigned short weight, int field);
+	void set_field(unsigned short in, int field);
 	void set_field(string in, int flag);
-
+	void set_field(int in, int field);
+	int get_groupID();
 private:
 	string first_name;
 	string last_name;
@@ -35,6 +37,7 @@ private:
 	unsigned short height;
 	unsigned short edit_points;
 	unsigned short birth_year;
+	int group_id;
 };
 
 }}
