@@ -42,11 +42,22 @@ typedef struct optionSettings settings;
 typedef struct saveDataChunk dataChunk;
 
 
-int main(){
-	ifstream file(FILE_NAME, ios::in | ios::binary);
+int main(int argc, char* args[]){
+	string filename;
+	if(argc  == 2)
+	{
+		filename = args[1];
+	}
+	else filename = FILE_NAME;
+	ifstream file(filename, ios::in | ios::binary);
+	file.seekg(0, ios_base::end);
+	long filesize = file.tellg();
+	file.seekg(ios_base::beg);
 
-	
-	
+	char* file_memory = new char[filesize];
+
+	file.read(file_memory, filesize);
+
 	string read_string;
 	char* buffer = new char[8];
 	int num_chunks = -1;
@@ -95,6 +106,7 @@ int main(){
 	// does x amount of wreslers
 	int counter = 0; // for printing
 	Wrestler* wr;
+	int* modifier = nullptr;
 	for(int x = 0; x < number_wrestlers; x++)
 	{
 		wr = new Wrestler();
@@ -185,6 +197,27 @@ int main(){
 	}
 
 	file.close();
+
+	ofstream o_file("output", ios_base::binary);
+
+	// create writer class to write out everything except memory chunks
+
+	cout << "Removing " << w_list[0].get_name() << " starting at " << w_list[0].get_fp_start() << " end at " << w_list[0].get_fp_end() << endl;
+
+	cout << "file size: " << filesize << endl;
+
+	// write to file, without first wrestler
+	
+	// set new number to wrestlers
+	modifier = (int*) &file_memory[wrestler_num_location];
+	*modifier = (number_wrestlers - 1);
+
+	for(long x = 0; x < filesize; x++) if((x <= w_list[0].get_fp_start()) || (x > w_list[0].get_fp_end())) o_file.write(&file_memory[x], 1);
+
+	// end what class should do
+	o_file.close();
+	modifier = nullptr;
+	delete [] file_memory;
 	delete [] list_chunks;
 	delete [] buffer;
 	return 0;
@@ -195,7 +228,7 @@ string getString(ifstream& in)
 	int length = getLength(in);
 	if(length > 0)
 	{
-		char* buffer = new char[length];
+		char* buffer = new char[length]();
 		in.read(buffer, length);
 		string result(buffer);
 		delete [] buffer;
