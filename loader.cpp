@@ -6,7 +6,7 @@
 #include <vector>
 #include "Wrestler.h"
 #include "Character.h"
-
+#include "WrestlerLoader.h"
 #define FILE_NAME "savedata"
 
 using namespace std;
