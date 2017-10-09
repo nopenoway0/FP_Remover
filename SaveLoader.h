@@ -18,6 +18,7 @@ public:
 	SaveLoader(string filename)
 	{
 		if(!this->open_file(filename)) f = nullptr;
+		this->filename = filename;
 	}
 	~SaveLoader()
 	{
@@ -34,7 +35,8 @@ public:
 	 */
 	bool open_file(string filename)
 	{
-		f = new ifstream(filename, ios_base::binary);
+		this->filename = filename;
+		f = new fstream(filename, ios_base::binary | ios_base::in | ios_base::out);
 		return f->is_open();
 	}
 	/**
@@ -42,13 +44,19 @@ public:
 	 */
 	virtual void load()=0;
 
+	void set_filename(string filename)
+	{
+		this->filename = filename;
+	}
+
 	/**
 	 * parses file for next T object
 	 * @return next T object from file
 	 */
 	virtual T parse()=0;
 protected:
-	ifstream* f;
+	string filename;
+	fstream* f;
 	vector<T> contents;
 };
 
