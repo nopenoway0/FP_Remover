@@ -2,6 +2,8 @@
 
 namespace fp_remover{ namespace loaders{
 
+	int NUM_CHUNKS = 17;
+
 	using namespace std;
 
 	typedef struct saveDataChunk{
@@ -22,26 +24,30 @@ namespace fp_remover{ namespace loaders{
 	WrestlerLoader::WrestlerLoader() : SaveLoader()
 	{
 		this->file_memory = nullptr;
+		this->chunk_location = nullptr;
 	}
 
 	WrestlerLoader::WrestlerLoader(string filename) : SaveLoader(filename)
 	{
 		this->file_memory = nullptr;
+		this->chunk_location = nullptr;
 	}
 
 	void WrestlerLoader::load()
 	{
-		int num_chunks, wrestler_num_location, number_wrestlers, counter = 0;
-		int* modifier = nullptr;
+		int num_chunks, number_wrestlers, counter = 0;
 		char *buffer;
 		saveDataChunk* list_chunks;
+
+		this->clear_memory(); // clear all pointers to avoid memory leaks
+
+		cout << "memory cleared" << endl;
 
 		f->seekg(0, ios_base::end);
 		filesize = f->tellg();
 		f->seekg(ios_base::beg);
 
-		if(file_memory != nullptr) delete [] file_memory;
-		file_memory = new char[filesize];
+		file_memory = (char*) malloc(sizeof(char) * filesize);
 
 		f->read(file_memory, filesize);
 
@@ -54,10 +60,19 @@ namespace fp_remover{ namespace loaders{
 		f->read(buffer, 8);
 		num_chunks = *(int32_t*) &buffer[4];
 
+		cout << "loading " << num_chunks << " memory chunks" << endl;
+		if(num_chunks != NUM_CHUNKS)
+		{
+			for(int x = 0; x < 16; x++)
+			{
+				cout << *(int32_t*) &buffer[x] << endl;
+			}
+			throw runtime_error("invalid number of chunks");
+		} 
+
 		list_chunks = new saveDataChunk[num_chunks];
 
 		f->seekg(16L); // move to location to begin loading chunks
-		
 		chunk_location = new long[num_chunks]; // store chunk top location for changing after wrestler is removed
 
 		for(int x = 0; x < num_chunks; x++)
@@ -66,6 +81,7 @@ namespace fp_remover{ namespace loaders{
 			list_chunks[x].chunkKind = *(int32_t*) &buffer[0];
 			list_chunks[x].version = *(int32_t*) &buffer[4];
 			list_chunks[x].top = *(int64_t*) &buffer[8];
+
 
 			chunk_location[x] = (long) f->tellg() - 8;
 		}
@@ -141,50 +157,35 @@ namespace fp_remover{ namespace loaders{
 			this->contents.push_back(*wr);
 			delete wr;
 		}
-/*
-		// set new number to wrestlers
-		modifier = (int*) &file_memory[this->wrestler_record_loc];
-		*modifier = (number_wrestlers - 1);
 
-		// change chunk tops
-		for( int x = 5; x < 17; x++)
-		{
-			modifier = (int*) &file_memory[chunk_location[x]];
-			*modifier -= (this->contents[0].get_fp_end() - this->contents[0].get_fp_start());		
-		}
-
-		for(int x = 11; x < 17; x++)
-		{
-			modifier = (int*) &file_memory[chunk_location[x]];
-			*modifier -= 4;
-		}
-*/
 		f->seekg(list_chunks[10].top + 4);
 
 		f->read(buffer, 4);
 		int num_elements = *(int*) buffer;
-
-		f->seekg((num_elements - 1) * 4, f->cur);
+		cout << "finding possible id" << endl;
+		for(int x = 0; x < num_elements; x++)
+		{
+			f->read(buffer, 4);
+			if(*(int*) buffer >= 10000)
+			{
+				cout << *(int*) buffer << endl;
+				f->seekg(-1*4, f->cur);
+				break;
+			}
+		}
+		//f->seekg((num_elements - 1) * 4, f->cur);
 
 		this->byte_skip_loc = f->tellg();
 
-		// generate class to handle this
-		for(long x = 0; x < filesize; x++)
-		{
-			//if(byte_test_loc == x) x += 3;
-			//else if((x <= w_list[0].get_fp_start()) || (x > w_list[0].get_fp_end())) o_f->write(&file_memory[x], 1);
-		}
-
-		// end what class should do
 		delete [] list_chunks;
 		delete [] buffer;
-		modifier = nullptr;
 		wr = nullptr;
 	}
 	
 	Wrestler WrestlerLoader::parse()
 	{
-
+		throw runtime_error("UNIMPLEMENTED METHOD: parse");
+		return Wrestler();
 	}
 
 	int WrestlerLoader::getLength()
@@ -210,7 +211,7 @@ namespace fp_remover{ namespace loaders{
 	{
 		int length = this->getLength();
 		char* buffer = new char[length + 1]();
-		this->f->read(buffer, length);
+		f->read(buffer, length);
 		buffer[length] = '\0';
 		string result(buffer);
 		delete [] buffer;
@@ -219,14 +220,24 @@ namespace fp_remover{ namespace loaders{
 
 	void WrestlerLoader::clear_memory()
 	{
-		delete [] this->file_memory;
-		this->file_memory = nullptr;
+		if(file_memory != nullptr)
+		{
+			free(file_memory);
+			file_memory = nullptr;
+		}
+		if(chunk_location != nullptr)
+		{
+			delete [] chunk_location;
+			chunk_location = nullptr;
+		}
+		this->contents.clear();
+
 	}
 
 	WrestlerLoader::~WrestlerLoader()
 	{
-		delete [] this->file_memory;
-		delete [] this->chunk_location;
+		free(file_memory);
+		delete [] chunk_location;
 	}
 
 	vector<Wrestler> WrestlerLoader::get_wrestlers()
@@ -259,6 +270,16 @@ namespace fp_remover{ namespace loaders{
 	{
 		const long int* p = &chunk_location[0];
 		return p;
+	}
+
+	bool WrestlerLoader::write(char* b_in, int size)
+	{
+		f->close();
+		f->open(this->filename, ios_base::binary | ios_base::in | ios_base::out | ios_base::trunc);
+		f->write(b_in, size);
+		f->close();
+		open_file(filename);
+		return true;
 	}
 
 }}
