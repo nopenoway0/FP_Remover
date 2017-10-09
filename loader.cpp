@@ -6,7 +6,7 @@
 #include <vector>
 #include "Wrestler.h"
 #include "Character.h"
-
+#include "WrestlerLoader.h"
 #define FILE_NAME "savedata"
 
 using namespace std;
@@ -76,37 +76,30 @@ int main(int argc, char* args[]){
 	file.read(file_memory, filesize);
 
 	string read_string;
-	char* buffer = new char[8];
+	char* buffer = new char[16];
 	int num_chunks = -1;
 	int wrestler_num_location;
 	file.seekg(0L);
 	vector<Wrestler> w_list;
-	// print ver and cunkdatanum
-	for(int x = 0; x < 2; x++)
-	{
-		file.read(buffer, 4);
-		if(x == NUM_CHUNKS) num_chunks = *(int32_t*) buffer;
-	}
+
+	// read 2 ints, second is number of chunks
+	file.read(buffer, 8);
+	num_chunks = *(int32_t*) &buffer[4];
 
 	saveDataChunk* list_chunks = new saveDataChunk[num_chunks];
 
 	file.seekg(16L); // move to location to begin loading chunks
-	// load first chunk data total chunks given by second integer read
 	
 	chunk_location = new long[num_chunks]; // store chunk top location for changing after wrestler is removed
 	for(int x = 0; x < num_chunks; x++)
 	{
 
-		file.read(buffer, 4);
-		list_chunks[x].chunkKind = *(int32_t*) buffer;
+		file.read(buffer, 16);
+		list_chunks[x].chunkKind = *(int32_t*) &buffer[0];
+		list_chunks[x].version = *(int32_t*) &buffer[4];
+		list_chunks[x].top = *(int64_t*) &buffer[8];
 
-		file.read(buffer, 4);
-		list_chunks[x].version = *(int32_t*) buffer;
-
-		chunk_location[x] = file.tellg();
-		file.read(buffer, 8);
-		list_chunks[x].top = *(int64_t*) buffer;
-
+		chunk_location[x] = (long) file.tellg() - 8;
 	}
 
 	for(int x = 0; x < num_chunks; x++)
@@ -135,15 +128,12 @@ int main(int argc, char* args[]){
 		for(int y = 0; y < 3; y++)
 		{
 			file.read(buffer, 4);
-			//cout << counter << ": " << *(int*) buffer << endl;
 			counter++;
 		}
 
 		file.read(buffer, 1);
-		//cout << counter << ": " << *(bool*) buffer << endl;
 		counter++;
 
-		//cout << "start of name loading: " << file.tellg() << endl;
 		for(int y = 0; y < 4; y++)
 		{
 			read_string = getString(file);
@@ -161,7 +151,6 @@ int main(int argc, char* args[]){
 		for(int y = 0; y < 27; y++)
 		{
 			file.read(buffer, 4);
-			//cout << counter << ": " << *(int*) buffer << endl;
 			counter++;
 			if(counter == 12) break; // break at birth year starts at this point
 		}
@@ -171,32 +160,14 @@ int main(int argc, char* args[]){
 		file.read(buffer, 4);
 		wr->set_field(*(int*) buffer, wrestler_flags::G_ID);
 
-		file.seekg(20 * 4, file.cur); // skip 24 integers
-		file.seekg((30 * 4) + 1, file.cur); // skip 30 integers and 1 bool
-		file.seekg(91 * 4 * 3, file.cur); // skip 90 integers  3 times
-		file.seekg(273 * 4, file.cur); // skip 274 integers
+		file.seekg((324 * 4) + 1 + (91 * 4 * 3), file.cur); // skip unecessary values
 		
-		file.read(buffer, 4);
-		//cout << "skill points: " << *(int*) buffer << endl;
-
 		read_string = getString(file);
-		//cout << "move name " << read_string << endl;
-
 		file.seekg(17, file.cur); // skip 17 bytes
-
 		read_string = getString(file);
-
-		//cout << "file directory name " << read_string << endl;
 
 		// costume data loading
-		file.read(buffer, 4);
-		//cout << "ver. " << *(int*) buffer << endl;
-
-		file.read(buffer, 4);
-		//cout << "stance: " << *(int*) buffer << endl;
-
-		file.read(buffer, 4);
-		//cout << "form size: " << *(int*) buffer << endl;
+		file.seekg(12, file.cur);
 
 		for(int y = 0; y < 4; y++)
 		{
@@ -204,24 +175,15 @@ int main(int argc, char* args[]){
 			for(int z = 0; z < 144; z++) read_string = getString(file);
 			file.seekg((144 * 4 * 4) + (149 * 4), file.cur); // skip 144 * 4 float then 149 float
 		}
+
 		wr->set_fp_end(file.tellg());
 		w_list.push_back(*wr);
-		//cout << "------------------FINISH LOADING WRESTLER--------------" << endl;
 		delete wr;
 	}
-
-	for(auto& x : w_list)
-	{
-		//cout << "Name: " << x.get_name() << " Size: " << x.get_fp_end() - x.get_fp_start() << endl;
-	}
-
 
 	ofstream o_file("output", ios_base::binary);
 
 	// create writer class to write out everything except memory chunks
-
-	//cout << "Removing " << w_list[0].get_name() << " starting at " << w_list[0].get_fp_start() << " end at " << w_list[0].get_fp_end() << endl;
-
 	cout << "file size: " << filesize << endl;
 
 	// write to file, without first wrestler
@@ -243,33 +205,29 @@ int main(int argc, char* args[]){
 		*modifier -= 4;
 	}
 
-	file.seekg(list_chunks[10].top);
-
-	file.read(buffer, 4); // read number of elements
-	int num = *(int*) buffer;
+	file.seekg(list_chunks[10].top + 4);
 
 	file.read(buffer, 4);
 	int num_elements = *(int*) buffer;
 
-	for(int x = 0; x < num_elements - 1; x++) file.read(buffer, 4);
+	file.seekg((num_elements - 1) * 4, file.cur);
 
 	int byte_test_loc = file.tellg();
 
-	// need to find where this 4 byte difference is coming from probably 4 byte id
-
+	// generate class to handle this
 	for(long x = 0; x < filesize; x++)
 	{
 		if(byte_test_loc == x) x += 3;
 		else if((x <= w_list[0].get_fp_start()) || (x > w_list[0].get_fp_end())) o_file.write(&file_memory[x], 1);
-
 	}
 
 	// end what class should do
 
 	o_file.close();
 	modifier = nullptr;
-
+	wr = nullptr;
 } // end wrestler load
+
 { // start disp_order load
 	for(auto& w : w_list) cout << w.get_name() << endl;
 }
