@@ -24,6 +24,7 @@ public:
 	const char* get_file_p();
 	unsigned long get_filesize();
 	const long int* get_chunk_locations();
+	bool write(char* b_in, int size);
 private:
 	// inherit:
 	// vector<T> contents
