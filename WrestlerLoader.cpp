@@ -35,6 +35,11 @@ namespace fp_remover{ namespace loaders{
 
 	void WrestlerLoader::load()
 	{
+		if(f == nullptr || !f->is_open())
+		{
+			string error_msg("Invalid File: " + filename);
+			throw runtime_error(error_msg);
+		}
 		int num_chunks, number_wrestlers, counter = 0;
 		char *buffer;
 		saveDataChunk* list_chunks;
@@ -276,6 +281,7 @@ namespace fp_remover{ namespace loaders{
 	{
 		f->close();
 		f->open(this->filename, ios_base::binary | ios_base::in | ios_base::out | ios_base::trunc);
+		if(!f->is_open()) throw runtime_error("invalid file");
 		f->write(b_in, size);
 		f->close();
 		open_file(filename);
