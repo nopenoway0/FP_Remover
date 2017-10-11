@@ -17,6 +17,7 @@ public:
 	}
 	SaveLoader(string filename)
 	{
+		f = nullptr;
 		if(!this->open_file(filename)) f = nullptr;
 		this->filename = filename;
 	}
@@ -35,9 +36,21 @@ public:
 	 */
 	bool open_file(string filename)
 	{
+		//if(f != nullptr) ;
+		if(f != nullptr)
+		{
+			if(f->is_open()) f->close();
+			delete f;
+		}
 		this->filename = filename;
 		f = new fstream(filename, ios_base::binary | ios_base::in | ios_base::out);
-		return f->is_open();
+		if(!f->is_open())
+		{
+			delete f;
+			f = nullptr;
+			return false;
+		}
+		else return true;
 	}
 	/**
 	 * loads entirety of contents vector
