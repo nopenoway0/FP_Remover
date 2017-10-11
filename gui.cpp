@@ -37,26 +37,31 @@ public:
         delete wl;*/
     }
 private:
+    void populate_checkboxes();
     void refresh_checkboxes();
     void OnExit(wxCommandEvent& event);
     void Delete_Wrestlers(wxCommandEvent& event);
+    void get_vars();
+    unsigned long wrestler_count_loc, skip_byte_loc, size;
+    void ChangeFilename(wxCommandEvent& event);
     wxDECLARE_EVENT_TABLE();
     vector<wxCheckBox*> checkboxes;
     WrestlerLoader* wl;
     vector<Wrestler> wrestlers;
     char* fp_m;
-    void get_vars();
-    unsigned long wrestler_count_loc, skip_byte_loc, size;
+
     const long* chunk_locations;
 };
 enum
 {
     wxID_DEL,
+    wxID_CHNG_F,
     wxID_C_PANEL
 };
 wxBEGIN_EVENT_TABLE(MyFrame, wxFrame)
     EVT_MENU(wxID_EXIT,  MyFrame::OnExit)
     EVT_MENU(wxID_DEL, MyFrame::Delete_Wrestlers)
+    EVT_MENU(wxID_CHNG_F, MyFrame::ChangeFilename)
 wxEND_EVENT_TABLE()
 wxIMPLEMENT_APP(MyApp);
 bool MyApp::OnInit()
@@ -69,27 +74,24 @@ MyFrame::MyFrame(const wxString& title, const wxPoint& pos, const wxSize& size)
         : wxFrame(NULL, wxID_ANY, title, pos, size)
 {
     wl = new WrestlerLoader("savedata");
-    get_vars();
+    fp_m = nullptr;
+    try{
+        get_vars();
+    }catch(runtime_error& e)
+    {
+        wxMessageBox(e.what());
+    }
     wxMessageBox("Loaded: " + to_string(wrestlers.size()) + " Wrestlers");
-    wxMenu* menu_commit = new wxMenu;
-    menu_commit->Append(wxID_DEL, "Commit");
+    wxMenu* menu_file = new wxMenu;
+    menu_file->Append(wxID_DEL, "Commit");
+    menu_file->Append(wxID_CHNG_F, "Find File");
     wxMenuBar* menu_bar = new wxMenuBar;
-    menu_bar->Append(menu_commit, "&File");
+    menu_bar->Append(menu_file, "&File");
     SetMenuBar(menu_bar);
 
-    wxBoxSizer* b1 = new wxBoxSizer(wxVERTICAL);
-    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     wxScrolledWindow* panel = new wxScrolledWindow(this, wxID_C_PANEL);
 
-
-    for(int x = 0; x < wrestlers.size(); x++)
-    {
-
-        checkboxes.push_back(new wxCheckBox(panel, wxID_ANY, wrestlers.at(x).get_name()));
-        sizer->Add(checkboxes.at(x));
-    }
-    panel->SetSizer(sizer);
-    panel->SetScrollRate(5, 5);
+    refresh_checkboxes();
 }
 void MyFrame::OnExit(wxCommandEvent& event)
 {
@@ -99,12 +101,11 @@ void MyFrame::OnExit(wxCommandEvent& event)
 void MyFrame::Delete_Wrestlers(wxCommandEvent& event)
 {
     // scan checkboxes
-    for(int x = checkboxes.size() - 1; x > 0; x--)
+    for(int x = checkboxes.size() - 1; x >= 0; x--)
     {
         if(checkboxes.at(x)->IsChecked())
         {
             size = remove_wrestler(fp_m, wrestlers, x, wl->get_record_loc(), wl->get_byte_skip_loc(), wl->get_filesize(), wl->get_chunk_locations());
-            wxMessageBox(wrestlers.at(x).get_name());
             wl->write(fp_m, size);
             wrestlers.clear();
             get_vars();
@@ -133,7 +134,6 @@ unsigned long remove_wrestler(char*& fp_m, vector<Wrestler>& w, int index, int c
     ip = (int*) &fp_m[count];
     *ip -= 1; // substract 1 from wrestler count
 
-    cout << "number of wrestlers " << *ip << endl;
     for( int x = 5; x < NUM_CHUNKS; x++)
     {
         ip = (int*) &fp_m[chunk_locations[x]];
@@ -149,20 +149,15 @@ unsigned long remove_wrestler(char*& fp_m, vector<Wrestler>& w, int index, int c
     if((unsigned int) skip_byte_loc < w.at(index).get_fp_start()) exit(-1);
     else if(skip_byte_loc >= size) exit(-1);
 
-    cout << "removing wrestler " << w.at(index).get_name().c_str() << " with id " << *(int*) &fp_m[skip_byte_loc] << " at " << w.at(index).get_fp_start() << endl;
-
-
     size = delete_section(fp_m, skip_byte_loc, 4, size);
-
     size = delete_section(fp_m, w.at(index).get_fp_start(), wrestler_size, size);
-
-    cout << "removed wrestler from memory" << endl;
 
     return size;
 }
 
 void MyFrame::get_vars()
 {
+    delete [] fp_m;
     wrestlers.clear();
     wl->load(); // update
     wrestler_count_loc = wl->get_record_loc();
@@ -177,5 +172,40 @@ void MyFrame::get_vars()
 
 void MyFrame::refresh_checkboxes()
 {
-    wxScrolledWindow* panel = (wxScrolledWindow*) 
+    wxScrolledWindow* panel = (wxScrolledWindow*) this->FindWindow(wxID_C_PANEL);
+    panel->DestroyChildren();
+    populate_checkboxes();
+}
+
+void MyFrame::populate_checkboxes()
+{
+    wxScrolledWindow* panel = (wxScrolledWindow*) this->FindWindow(wxID_C_PANEL);
+    wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
+    checkboxes.clear();
+    for(int x = 0; x < wrestlers.size(); x++)
+    {
+
+        checkboxes.push_back(new wxCheckBox(panel, wxID_ANY, wrestlers.at(x).get_name()));
+        sizer->Add(checkboxes.at(x));
+    }
+    panel->SetSizer(sizer);
+    panel->SetScrollRate(5, 5);
+    panel->FitInside();
+    panel->Layout();
+    panel->Refresh();
+    panel->Update();
+}
+
+void MyFrame::ChangeFilename(wxCommandEvent& e)
+{
+    wxFileDialog* fd = new wxFileDialog(this, "Select savedata File");
+    if(fd->ShowModal() == wxID_OK)
+    {
+        if(!wl->open_file(fd->GetPath().ToStdString()))
+        {
+            wxMessageBox("Could not open file");
+        }
+        get_vars();
+        refresh_checkboxes();
+    }
 }
